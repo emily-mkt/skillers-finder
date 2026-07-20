@@ -6,7 +6,7 @@ license: MIT
 
 # Skillers Finder v4 — narrow/broad scope 판별 + 진짜 검색 기반 추천
 
-스폰지클럽 이기적인 스킬러스 채널용. **레딧·깃헙 실제 검색** → 추천 8~10 → 자동 설치 → 채널 후기 템플릿.
+스폰지클럽 이기적인 스킬러스 채널용. **Claude Skills Hub 카탈로그(12,980+) + 레딧·깃헙 실제 검색** → 추천 8~10 → 자동 설치 → 채널 후기 템플릿.
 
 ---
 
@@ -111,9 +111,32 @@ git log --oneline -10 2>/dev/null  # 최근 작업 흐름
 
 ---
 
-## STEP 2 — 실제 검색 (MANDATORY, 최소 5회)
+## STEP 2 — 실제 검색 (MANDATORY, 최소 5회 + 카탈로그 1회)
 
 이 단계는 **NEVER SKIP**. 안 돌리면 STEP 3 출력 자체가 위반.
+
+### 2-0. ⭐ Claude Skills Hub 카탈로그 먼저 (MANDATORY, 제일 먼저)
+
+**WebSearch보다 먼저 이걸 친다.** 12,980+ 스킬이 색인된 카탈로그라 히트율이 가장 높고, 구조화된 JSON이라 별점·출처가 바로 나온다.
+
+```bash
+curl -s --max-time 20 -G "https://claudeskills.info/api/v1/search" \
+  --data-urlencode "q={keyword}" --data-urlencode "limit=10"
+```
+
+- ⚠️ **반드시 `-G --data-urlencode`로 친다.** URL에 검색어를 그대로 박으면 비ASCII(한글·공백)에서 **HTTP 400 + 빈 응답**이 떨어지고, 빈 응답을 JSON 파싱하면 그대로 터진다. (2026-07-20 실측 확인)
+- 키워드별로 1회씩(보통 2~3회). **영어로 친다** — 한글은 인코딩해도 결과 0건이다(실측: `카드뉴스` → 인코딩해도 total 0).
+  - 예: "카드뉴스" → `carousel`, "회의록" → `meeting notes`, "랜딩페이지" → `landing page`
+- 파라미터: `q`(검색어) · `limit`(기본 10) · `offset`(페이징)
+- 응답 필드: `total` / `results[]` = `slug` · `name` · `description` · `category` · `type` · `confidence`(high|medium|low) · `stars` · `source.repo` · `source.url`
+- `type`은 **`skill` 말고도 `subagent` · `plugin` 등이 섞여 나온다.** 스킬 추천이 목적이면 `type`을 출력에 표기하고, 플러그인·서브에이전트는 설치 방법이 다르니 STEP 4에서 구분해 안내할 것.
+
+**읽는 법 (중요):**
+- `stars`는 **스킬 별이 아니라 담긴 레포의 별**이다. 22만 개짜리 모노레포에 든 스킬도 22만으로 찍힌다 → **인기 근거로 쓰되 "이 스킬이 22만 스타"라고 쓰면 거짓말.** 출력엔 `{repo} 레포 ⭐{stars}` 형식으로 레포 것임을 명시.
+- `confidence: low`는 색인 자동분류가 불확실하다는 뜻 → 추천 전 `source.url` 한 번 확인.
+- `category`가 빈 문자열인 항목 많음 → 카테고리로 거르지 말 것.
+
+**결과 0건이면** 키워드를 한 단계 일반화해서 1회 더(예: `threads carousel` → `carousel`). 그래도 0이면 카탈로그는 접고 WebSearch로 간다 — 카탈로그 실패가 STEP 2 실패는 아니다.
 
 ### 2-1. 실행할 5개 쿼리 (병렬 권장)
 
@@ -149,9 +172,11 @@ git log --oneline -10 2>/dev/null  # 최근 작업 흐름
 ### 2-4. 자체 체크 (출력 전 필수)
 
 다음 스스로 확인. 하나라도 NO면 STEP 3 못 감:
+- [ ] **Claude Skills Hub API 호출 ≥ 1회?** (2-0, 결과 0건이어도 시도는 필수)
 - [ ] WebSearch 호출 ≥ 5회?
 - [ ] 결과에 실제 깃헙 별·레딧 업보트 숫자 있나?
-- [ ] 레딧/깃헙 출처 ≥ 70%?
+- [ ] 레딧/깃헙/카탈로그 출처 ≥ 70%?
+- [ ] **`stars`를 "레포 별"로 표기했나?** (스킬 자체 별로 쓰면 위반)
 
 NO면 → STEP 2 다시.
 
